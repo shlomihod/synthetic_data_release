@@ -13,9 +13,9 @@ from utils.utils import json_numpy_serialzer
 from utils.logging import LOGGER
 from utils.constants import *
 
-from generative_models.ctgan import CTGAN
+# from generative_models.ctgan import CTGAN
 from generative_models.data_synthesiser import IndependentHistogram, BayesianNet, PrivBayes
-from generative_models.pate_gan import PATEGAN
+# from generative_models.pate_gan import PATEGAN
 from sanitisation_techniques.sanitiser import SanitiserNHS
 from attack_models.reconstruction import LinRegAttack, RandForestAttack
 
@@ -88,12 +88,12 @@ def main():
             elif gm == 'PrivBayes':
                 for params in paramsList:
                     gmList.append(PrivBayes(metadata, *params))
-            elif gm == 'CTGAN':
-                for params in paramsList:
-                    gmList.append(CTGAN(metadata, *params))
-            elif gm == 'PATEGAN':
-                for params in paramsList:
-                    gmList.append(PATEGAN(metadata, *params))
+            # elif gm == 'CTGAN':
+            #     for params in paramsList:
+            #         gmList.append(CTGAN(metadata, *params))
+            # elif gm == 'PATEGAN':
+            #     for params in paramsList:
+            #         gmList.append(PATEGAN(metadata, *params))
             else:
                 raise ValueError(f'Unknown GM {gm}')
 

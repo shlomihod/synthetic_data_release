@@ -20,8 +20,8 @@ from feature_sets.bayes import CorrelationsFeatureSet
 
 from sanitisation_techniques.sanitiser import SanitiserNHS
 
-from generative_models.ctgan import CTGAN
-from generative_models.pate_gan import PATEGAN
+# from generative_models.ctgan import CTGAN
+# from generative_models.pate_gan import PATEGAN
 from generative_models.data_synthesiser import (IndependentHistogram,
                                                 BayesianNet,
                                                 PrivBayes)
@@ -104,12 +104,12 @@ def main():
             elif gm == 'PrivBayes':
                 for params in paramsList:
                     gmList.append(PrivBayes(metadata, *params))
-            elif gm == 'CTGAN':
-                for params in paramsList:
-                    gmList.append(CTGAN(metadata, *params))
-            elif gm == 'PATEGAN':
-                for params in paramsList:
-                    gmList.append(PATEGAN(metadata, *params))
+            # elif gm == 'CTGAN':
+            #     for params in paramsList:
+            #         gmList.append(CTGAN(metadata, *params))
+            # elif gm == 'PATEGAN':
+            #     for params in paramsList:
+            #         gmList.append(PATEGAN(metadata, *params))
             else:
                 raise ValueError(f'Unknown GM {gm}')
 

@@ -91,14 +91,14 @@ def main():
     # CTGAN parameters:
     # embedding_dim=128, gen_dim=(256, 256), dis_dim=(256, 256), l2scale=1e-6,
     # batch_size=500, epochs=300, multiprocess=False
-    elif args.mechanism == 'CTGAN':
-        mechanism = CTGAN(metadata, *parameters)
+    # elif args.mechanism == 'CTGAN':
+    #     mechanism = CTGAN(metadata, *parameters)
 
     # PATEGAN parameters:
     # eps=1, delta=1e-5, infer_ranges=False, num_teachers=10, n_iters=100,
     # batch_size=128, learning_rate=1e-4, multiprocess=False
-    elif args.mechanism == 'PATEGAN':
-        mechanism = PATEGAN(metadata, *parameters)
+    # elif args.mechanism == 'PATEGAN':
+    #     mechanism = PATEGAN(metadata, *parameters)
 
     # Unknown mechanism
     else:

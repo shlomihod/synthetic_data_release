@@ -8,8 +8,8 @@ from os import path
 cwd = path.dirname(__file__)
 
 from generative_models.data_synthesiser import IndependentHistogram, BayesianNet, PrivBayes
-from generative_models.ctgan import CTGAN
-from generative_models.pate_gan import PATEGAN
+# from generative_models.ctgan import CTGAN
+# from generative_models.pate_gan import PATEGAN
 
 from utils.datagen import *
 
@@ -91,37 +91,37 @@ class TestGenerativeModel(TestCase):
 
         self.assertListEqual(list(synthetic_data), list(self.raw))
 
-    def test_ctgan(self):
-        print('\nTest CTGAN')
+    # def test_ctgan(self):
+    #     print('\nTest CTGAN')
 
-        gm = CTGAN(self.metadata, batch_size=10, epochs=2)
-        gm.fit(self.raw)
-        synthetic_data = gm.generate_samples(self.sizeS)
+    #     gm = CTGAN(self.metadata, batch_size=10, epochs=2)
+    #     gm.fit(self.raw)
+    #     synthetic_data = gm.generate_samples(self.sizeS)
 
-        self.assertListEqual(list(synthetic_data), list(self.raw))
+    #     self.assertListEqual(list(synthetic_data), list(self.raw))
 
 
-    def test_pategan(self):
-        # Default params
-        gm = PATEGAN(self.metadata)
-        gm.fit(self.raw)
-        synthetic_data = gm.generate_samples(self.sizeS)
+    # def test_pategan(self):
+    #     # Default params
+    #     gm = PATEGAN(self.metadata)
+    #     gm.fit(self.raw)
+    #     synthetic_data = gm.generate_samples(self.sizeS)
 
-        self.assertTupleEqual(synthetic_data.shape, self.raw.shape)
+    #     self.assertTupleEqual(synthetic_data.shape, self.raw.shape)
 
-        # Change privacy params
-        gm = PATEGAN(self.metadata, eps=10, delta=1e-1)
-        gm.fit(self.raw)
-        synthetic_data = gm.generate_samples(self.sizeS)
+    #     # Change privacy params
+    #     gm = PATEGAN(self.metadata, eps=10, delta=1e-1)
+    #     gm.fit(self.raw)
+    #     synthetic_data = gm.generate_samples(self.sizeS)
 
-        self.assertTupleEqual(synthetic_data.shape, self.raw.shape)
+    #     self.assertTupleEqual(synthetic_data.shape, self.raw.shape)
 
-        # Infer ranges
-        gm = PATEGAN(self.metadata, infer_ranges=True)
-        gm.fit(self.raw)
-        synthetic_data = gm.generate_samples(self.sizeS)
+    #     # Infer ranges
+    #     gm = PATEGAN(self.metadata, infer_ranges=True)
+    #     gm.fit(self.raw)
+    #     synthetic_data = gm.generate_samples(self.sizeS)
 
-        self.assertTupleEqual(synthetic_data.shape, self.raw.shape)
+    #     self.assertTupleEqual(synthetic_data.shape, self.raw.shape)
 
 
 

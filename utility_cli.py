@@ -15,8 +15,8 @@ from utils.logging import LOGGER
 
 from sanitisation_techniques.sanitiser import SanitiserNHS
 from generative_models.data_synthesiser import BayesianNet, PrivBayes, IndependentHistogram
-from generative_models.ctgan import CTGAN
-from generative_models.pate_gan import PATEGAN
+# from generative_models.ctgan import CTGAN
+# from generative_models.pate_gan import PATEGAN
 from predictive_models.predictive_model import RandForestClassTask, LogRegClassTask, LinRegTask
 
 from warnings import simplefilter
@@ -100,12 +100,12 @@ def main():
             elif gm == 'PrivBayes':
                 for params in paramsList:
                     gmList.append(PrivBayes(metadata, *params))
-            elif gm == 'CTGAN':
-                for params in paramsList:
-                    gmList.append(CTGAN(metadata, *params))
-            elif gm == 'PATEGAN':
-                for params in paramsList:
-                    gmList.append(PATEGAN(metadata, *params))
+            # elif gm == 'CTGAN':
+            #     for params in paramsList:
+            #         gmList.append(CTGAN(metadata, *params))
+            # elif gm == 'PATEGAN':
+            #     for params in paramsList:
+            #         gmList.append(PATEGAN(metadata, *params))
             else:
                 raise ValueError(f'Unknown GM {gm}')
 
