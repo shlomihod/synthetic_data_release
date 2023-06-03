@@ -1,5 +1,4 @@
 """A template file for writing a test for a new export generative model"""
-from pathlib import Path
 from unittest import TestCase
 from warnings import filterwarnings
 
@@ -10,8 +9,8 @@ from os import path
 cwd = path.dirname(__file__)
 
 
-import json
-from os import mkdir, path
+from collections import Counter
+from os import path
 from warnings import simplefilter
 
 import numpy as np
@@ -62,7 +61,8 @@ class TestExport(TestCase):
                 degree=DEGREE,
                 epsilon=EPSILON,
             ),
-            PrivBayesDS(degree=DEGREE, epsilon=EPSILON),
+            PrivBayesDS(degree=DEGREE, epsilon=EPSILON, secure=False),
+            PrivBayesDS(degree=DEGREE, epsilon=EPSILON, secure=True),
         ]
         print(f"gmList = {gmList}")
 
@@ -92,9 +92,13 @@ class TestExport(TestCase):
 
         assert gmList[0].bayesian_network == gmList[1].bayesian_network
         assert gmList[2].bayesian_network == gmList[3].bayesian_network
-        
-        assert gmList[0].conditional_probabilities == gmList[1].conditional_probabilities
-        assert gmList[2].conditional_probabilities == gmList[3].conditional_probabilities
+
+        assert (
+            gmList[0].conditional_probabilities == gmList[1].conditional_probabilities
+        )
+        assert (
+            gmList[2].conditional_probabilities == gmList[3].conditional_probabilities
+        )
 
         assert all(
             (df1 == df2).values.all()
@@ -104,3 +108,21 @@ class TestExport(TestCase):
             (df1 == df2).values.all()
             for df1, df2 in zip(samplesList[2], samplesList[3])
         )
+
+        # PrivBayesDS(secure=False) and PrivBayesDS(secure=True) should be different
+        assert gmList[3].bayesian_network != gmList[4].bayesian_network
+        assert (
+            gmList[3].conditional_probabilities != gmList[4].conditional_probabilities
+        )
+        assert all(
+            (df1 != df2).values.any()
+            for df1, df2 in zip(samplesList[3], samplesList[4])
+        )
+
+        print("PrivBayesDS(secure=False)")
+        gmList[3].show()
+        print(Counter(mech for mech, *_ in gmList[3].transcript))
+
+        print("PrivBayesDS(secure=True)")
+        gmList[4].show()
+        print(Counter(mech for mech, *_ in gmList[4].transcript))

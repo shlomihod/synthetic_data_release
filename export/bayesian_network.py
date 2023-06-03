@@ -2,13 +2,18 @@
 # Copyright <2018> <dataresponsibly.com>
 
 import itertools as it
-from string import ascii_lowercase
+import secrets
+import warnings
 
 import numpy as np
 import pandas as pd
+from opendp.measurements import make_base_laplace
+from opendp.mod import enable_features
 from sklearn.metrics import mutual_info_score, normalized_mutual_info_score
 
 from utils.logging import LOGGER
+
+CSPRNG = secrets.SystemRandom()
 
 
 class GenerativeModel:
@@ -85,10 +90,6 @@ def display_bayesian_network(bn):
     print("Constructed Bayesian network:")
     for child, parents in bn:
         print("    {0:{width}} has parents {1}.".format(child, parents, width=length))
-
-
-def generate_random_string(length):
-    return "".join(np.random.choice(list(ascii_lowercase), size=length))
 
 
 def bayes_worker(paras):
@@ -174,8 +175,9 @@ class BayesianNetDS(GenerativeModel):
     A BayesianNet model using non-private GreedyBayes to learn conditional probabilities
     """
 
-    def __init__(self, degree):
+    def __init__(self, degree, sampling_seed=None):
         self.degree = degree
+        self.sampling_seed = sampling_seed
 
         self.bayesian_network = None
         self.conditional_probabilities = None
@@ -183,6 +185,8 @@ class BayesianNetDS(GenerativeModel):
 
         self.ranges = None
         self.num_attributes = None
+
+        self.sampling_prng = np.random
 
         self.__name__ = "BayesianNet"
 
@@ -238,13 +242,14 @@ class BayesianNetDS(GenerativeModel):
         return df
 
     def _generate_encoded_dataset(self, nsamples):
+
         encoded_df = pd.DataFrame(
             columns=self._get_sampling_order(self.bayesian_network)
         )
 
         bn_root_attr = self.bayesian_network[0][1][0]
         root_attr_dist = self.conditional_probabilities[bn_root_attr]
-        encoded_df[bn_root_attr] = np.random.choice(
+        encoded_df[bn_root_attr] = self.sampling_prng.choice(
             len(root_attr_dist), size=nsamples, p=root_attr_dist
         )
 
@@ -262,7 +267,7 @@ class BayesianNetDS(GenerativeModel):
                 filter_condition = eval(filter_condition[:-1])
                 size = encoded_df[filter_condition].shape[0]
                 if size:
-                    encoded_df.loc[filter_condition, child] = np.random.choice(
+                    encoded_df.loc[filter_condition, child] = self.sampling_prng.choice(
                         len(dist), size=size, p=dist
                     )
 
@@ -393,22 +398,41 @@ class BayesianNetDS(GenerativeModel):
 
         return full_counts
 
+    def show(self):
+        display_bayesian_network(self.bayesian_network)
+
 
 class PrivBayesDS(BayesianNetDS):
     """ "
     A differentially private BayesianNet model using GreedyBayes
     """
 
-    def __init__(self, degree, epsilon, epsilon_split=0.5):
+    def __init__(self, degree, epsilon, epsilon_split=0.5, secure=True):
         super().__init__(degree=degree)
 
         assert 0 < epsilon_split < 1
+
+        self.transcript = []
 
         self.epsilon = float(epsilon)
         self.epsilon_split = float(epsilon_split)
 
         self.epsilon_em = self.epsilon_split * self.epsilon
         self.epsilon_hist = (1 - self.epsilon_split) * self.epsilon
+
+        self.secure = secure
+        if not self.secure:
+            warnings.warn(
+                "Secure is set to False. This is not recommended for real-world use."
+            )
+
+        # Override np.random with predictable PRNG
+        # THIS IS NOT CSPRNG, but it's ok for sampling
+        if self.secure:
+            self.sampling_prng = np.random.default_rng()
+            self.transcript.append(
+                ("sampling_seed", self.sampling_prng.bit_generator.state)
+            )
 
         self.__name__ = f"PrivBayesEps{self.epsilon}"
 
@@ -423,7 +447,13 @@ class PrivBayesDS(BayesianNetDS):
 
         attr_to_is_binary = {attr: dataset[attr].unique().size <= 2 for attr in dataset}
 
-        root_attribute = np.random.choice(dataset.columns)
+        if self.secure:
+            root_attribute = CSPRNG.choice(dataset.columns)
+        else:
+            root_attribute = np.random.choice(dataset.columns)
+
+        self.transcript.append(("root_attribute", dataset.columns, root_attribute))
+
         V = [root_attribute]
         rest_attributes = set(dataset.columns)
         rest_attributes.remove(root_attribute)
@@ -449,8 +479,28 @@ class PrivBayesDS(BayesianNetDS):
                 num_tuples,
                 num_attributes,
             )
-            idx = np.random.choice(
-                list(range(len(mutual_info_list))), p=sampling_distribution
+
+            seq = list(range(len(mutual_info_list)))
+            if self.secure:
+                idxs = CSPRNG.choices(seq, weights=sampling_distribution, k=1)
+                assert len(idxs) == 1
+                idx = idxs[0]
+            else:
+                idx = np.random.choice(seq, p=sampling_distribution)
+
+            self.transcript.append(
+                (
+                    "exponential_mechanism",
+                    self.secure,
+                    self.epsilon_em,
+                    mutual_info_list,
+                    parents_pair_list,
+                    attr_to_is_binary,
+                    num_tuples,
+                    num_attributes,
+                    sampling_distribution,
+                    idx,
+                )
             )
 
             bayesian_net.append(parents_pair_list[idx])
@@ -479,10 +529,32 @@ class PrivBayesDS(BayesianNetDS):
         full_counts.fillna(0, inplace=True)
 
         # Get Laplace noise sample
-        noise_sample = np.random.laplace(
-            0, scale=self.laplace_noise_scale, size=full_counts.index.size
+        if self.secure:
+            enable_features("floating-point", "contrib", "use-openssl")
+            meas = make_base_laplace(self.laplace_noise_scale)
+            noise_sample = [meas(0.0) for _ in range(full_counts.index.size)]
+        else:
+            noise_sample = np.random.laplace(
+                0, scale=self.laplace_noise_scale, size=full_counts.index.size
+            )
+
+        self.transcript.append(
+            (
+                "noise_sample",
+                self.secure,
+                self.laplace_noise_scale,
+                attributes,
+                noise_sample,
+            )
         )
+
         full_counts["count"] += noise_sample
         full_counts.loc[full_counts["count"] < 0, "count"] = 0
 
         return full_counts
+
+    def fit(self, df, ranges):
+        if self.trained:
+            self.transcript = []
+
+        super().fit(df, ranges)

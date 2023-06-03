@@ -123,6 +123,14 @@ optional = false
 python-versions = ">=3.6"
 
 [[package]]
+name = "opendp"
+version = "0.7.0"
+description = "Python bindings for the OpenDP Library"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[[package]]
 name = "packaging"
 version = "23.1"
 description = "Core utilities for Python packages"
@@ -343,7 +351,7 @@ dev = ["pytest (>=4.6.2)", "black (>=19.3b0)"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<3.9"
-content-hash = "fe66bc7d5bfe4b0d0c2cea7dd23f994ecf1deaf73fff64d2905975c79feb6ed3"
+content-hash = "f212e837d037aed139182af2b87a87e8d5a8ad0b703acbf1abb644923e995fcf"
 
 [metadata.files]
 atomicwrites = []
@@ -358,6 +366,7 @@ loguru = []
 matplotlib = []
 more-itertools = []
 numpy = []
+opendp = []
 packaging = []
 palettable = []
 pandas = []
