@@ -30,6 +30,20 @@ optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*,>=2.7"
 
 [[package]]
+name = "coverage"
+version = "7.2.7"
+description = "Code coverage measurement for Python"
+category = "dev"
+optional = false
+python-versions = ">=3.7"
+
+[package.dependencies]
+tomli = {version = "*", optional = true, markers = "python_full_version <= \"3.11.0a6\" and extra == \"toml\""}
+
+[package.extras]
+toml = ["tomli"]
+
+[[package]]
 name = "cycler"
 version = "0.11.0"
 description = "Composable style cycles"
@@ -205,6 +219,21 @@ checkqa-mypy = ["mypy (==v0.761)"]
 testing = ["argcomplete", "hypothesis (>=3.56)", "mock", "nose", "requests", "xmlschema"]
 
 [[package]]
+name = "pytest-cov"
+version = "3.0.0"
+description = "Pytest plugin for measuring coverage."
+category = "dev"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+coverage = {version = ">=5.2.1", extras = ["toml"]}
+pytest = ">=4.6"
+
+[package.extras]
+testing = ["fields", "hunter", "process-tests", "six", "pytest-xdist", "virtualenv"]
+
+[[package]]
 name = "python-dateutil"
 version = "2.8.2"
 description = "Extensions to the standard Python datetime module"
@@ -285,6 +314,14 @@ optional = false
 python-versions = ">=3.6"
 
 [[package]]
+name = "tomli"
+version = "2.0.1"
+description = "A lil' TOML parser"
+category = "dev"
+optional = false
+python-versions = ">=3.7"
+
+[[package]]
 name = "wcwidth"
 version = "0.2.6"
 description = "Measures the displayed width of unicode strings in a terminal"
@@ -306,12 +343,13 @@ dev = ["pytest (>=4.6.2)", "black (>=19.3b0)"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<3.9"
-content-hash = "99f036c1edfba101df885fa0cce3b62a2ab32c1ac775b97f2970186c7b46251f"
+content-hash = "fe66bc7d5bfe4b0d0c2cea7dd23f994ecf1deaf73fff64d2905975c79feb6ed3"
 
 [metadata.files]
 atomicwrites = []
 attrs = []
 colorama = []
+coverage = []
 cycler = []
 husl = []
 joblib = []
@@ -328,6 +366,7 @@ pluggy = []
 py = []
 pyparsing = []
 pytest = []
+pytest-cov = []
 python-dateutil = []
 pytz = []
 scikit-learn = []
@@ -335,5 +374,6 @@ scipy = []
 seaborn = []
 six = []
 threadpoolctl = []
+tomli = []
 wcwidth = []
 win32-setctime = []
