@@ -70,7 +70,7 @@ jobs:
     - name: Install Dependencies
       run: poetry install -vv
     - name: Test & build coverage file
-      run: poetry run pytest --cache-clear --cov=synthetic_data_release tests/test_export.py | tee pytest-coverage.txt
+      run: poetry run pytest -s --cache-clear --cov=synthetic_data_release tests/test_export.py | tee pytest-coverage.txt
       # env:
       #   WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
     - name: Comment coverage
