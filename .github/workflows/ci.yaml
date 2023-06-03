@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '0 0 * * WED'
+  # workflow_dispatch:
+  #   inputs:
+  #     debug_enabled:
+  #       description: 'Run the build with tmate debugging enabled (https://github.com/marketplace/actions/debugging-with-tmate)'
+  #       required: false
+  #       default: false
+
+jobs:
+
+  pre-commit:
+    name: pre-commit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.8
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+      - name: Install Dependencies
+        run: poetry install -vv
+      # - uses: pre-commit/action@v3.0.0
+      #   with:
+      #     extra_args: --all-files
+      - name: Help message if pre-commit fail
+        if: ${{ failure() }}
+        run: |
+          echo "You can install pre-commit hooks to automatically run formatting"
+          echo "on each commit with:"
+          echo "    pre-commit install"
+          echo "or you can run by hand on staged files with"
+          echo "    pre-commit run"
+          echo "or after-the-fact on already committed files with"
+          echo "    pre-commit run --all-files --hook-stage=manual"
+
+  test:
+    needs: pre-commit
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: true
+      matrix:
+        python-version: ['3.8']
+        os: ['ubuntu-latest', 'windows-latest']
+    steps:
+    - uses: actions/checkout@v1
+    - name: Set up MSYS2 for Windows
+      uses: msys2/setup-msys2@v2
+      if: startsWith(matrix.os, 'windows')
+      with:
+        msystem: MINGW64
+        update: true
+        install: git mingw-w64-x86_64-toolchain
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+    - name: Prepare PriveBayes
+      run: cd privbayes && make
+    - name: Install Dependencies
+      run: poetry install -vv
+    - name: Test & build coverage file
+      run: poetry run pytest --cache-clear --cov=synthetic_data_release tests/test_export.py | tee pytest-coverage.txt
+      # env:
+      #   WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+    - name: Comment coverage
+      uses: coroo/pytest-coverage-commentator@v1.0.2
+    # - name: Setup tmate session
+    #   uses: mxschmitt/action-tmate@v3
+    #   if: ${{ failure() && github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled }}
