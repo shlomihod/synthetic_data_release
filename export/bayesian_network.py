@@ -4,6 +4,7 @@
 import itertools as it
 import secrets
 import warnings
+import logging
 
 import numpy as np
 import pandas as pd
@@ -11,7 +12,7 @@ from opendp.measurements import make_base_laplace
 from opendp.mod import enable_features
 from sklearn.metrics import mutual_info_score, normalized_mutual_info_score
 
-from utils.logging import LOGGER
+LOGGER = logging.getLogger(__name__)
 
 CSPRNG = secrets.SystemRandom()
 
