@@ -20,6 +20,9 @@ LOGGER = logging.getLogger(__name__)
 
 CSPRNG = secrets.SystemRandom()
 
+# THIS IS NOT CSPRNG, but it's ok for sampling
+SAMPLING_PRNG = np.random.default_rng()
+
 
 class GenerativeModel:
     """Parent class for all generative models"""
@@ -183,8 +186,6 @@ class BayesianNetDS(GenerativeModel):
         self.ranges = None
         self.num_attributes = None
 
-        self.sampling_prng = np.random
-
         self.__name__ = "BayesianNet"
 
     def fit(self, df, ranges):
@@ -231,7 +232,7 @@ class BayesianNetDS(GenerativeModel):
 
         bn_root_attr = self.bayesian_network[0][1][0]
         root_attr_dist = self.conditional_probabilities[bn_root_attr]
-        encoded_df[bn_root_attr] = self.sampling_prng.choice(
+        encoded_df[bn_root_attr] = SAMPLING_PRNG.choice(
             len(root_attr_dist), size=nsamples, p=root_attr_dist
         )
 
@@ -249,7 +250,7 @@ class BayesianNetDS(GenerativeModel):
                 filter_condition = eval(filter_condition[:-1])
                 size = encoded_df[filter_condition].shape[0]
                 if size:
-                    encoded_df.loc[filter_condition, child] = self.sampling_prng.choice(
+                    encoded_df.loc[filter_condition, child] = SAMPLING_PRNG.choice(
                         len(dist), size=size, p=dist
                     )
 
@@ -393,7 +394,7 @@ class PrivBayesDS(BayesianNetDS):
     A differentially private BayesianNet model using GreedyBayes
     """
 
-    def __init__(self, degree, epsilon, epsilon_split=0.5, secure=True):
+    def __init__(self, degree, epsilon, epsilon_split, secure=True):
         super().__init__(degree=degree)
 
         assert 0 < epsilon_split < 1
@@ -417,13 +418,7 @@ class PrivBayesDS(BayesianNetDS):
                 "Secure is set to False. This is not recommended for real-world use."
             )
 
-        # Override np.random with predictable PRNG
-        # THIS IS NOT CSPRNG, but it's ok for sampling
-        if self.secure:
-            self.sampling_prng = np.random.default_rng()
-            self.transcript.append(
-                ("sampling_seed", self.sampling_prng.bit_generator.state)
-            )
+        self.transcript.append(("sampling_seed", SAMPLING_PRNG.bit_generator.state))
 
         self.__name__ = f"PrivBayesEps{self.epsilon}"
 
@@ -552,3 +547,4 @@ class PrivBayesDS(BayesianNetDS):
             self.transcript = []
 
         super().fit(df, ranges)
+
