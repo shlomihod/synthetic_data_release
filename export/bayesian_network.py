@@ -1,10 +1,14 @@
 """Generative models adapted from https://github.com/DataResponsibly/DataSynthesizer"""
 # Copyright <2018> <dataresponsibly.com>
 
+# Based on:
+# http://github.com/shlomihod/synthetic_data_release
+
+
 import itertools as it
+import logging
 import secrets
 import warnings
-import logging
 
 import numpy as np
 import pandas as pd
@@ -46,7 +50,7 @@ def mutual_information(labels_x: pd.Series, labels_y: pd.DataFrame):
 
 
 def pairwise_attributes_mutual_information(dataset):
-    """Compute normalized mutual information for all pairwise attributes. Return a pd.DataFrame."""
+    """Compute normalized mutual information for all pairwise attributes."""
     sorted_columns = sorted(dataset.columns)
     mi_df = pd.DataFrame(columns=sorted_columns, index=sorted_columns, dtype=float)
     for row in mi_df.columns:
@@ -72,16 +76,6 @@ def normalize_given_distribution(frequencies):
         return np.full_like(distribution, 1 / distribution.size)
 
 
-def infer_numerical_attributes_in_dataframe(df):
-    describe = df.describe()
-    # pd.DataFrame.describe() usually returns 8 rows.
-    if describe.shape[0] == 8:
-        return set(describe.columns)
-    # pd.DataFrame.describe() returns less than 8 rows when there is no numerical attribute.
-    else:
-        return set()
-
-
 def display_bayesian_network(bn):
     length = 0
     for child, _ in bn:
@@ -99,7 +93,9 @@ def bayes_worker(paras):
     mutual_info_list = []
 
     if split + num_parents - 1 < len(V):
-        for other_parents in it.combinations(V[split + 1 :], num_parents - 1):
+        for other_parents in it.combinations(
+            V[split + 1 :], num_parents - 1  # noqa: E203
+        ):
             parents = list(other_parents)
             parents.append(V[split])
             parents_pair_list.append((child, parents))
@@ -192,25 +188,20 @@ class BayesianNetDS(GenerativeModel):
         self.__name__ = "BayesianNet"
 
     def fit(self, df, ranges):
-        # assert isinstance(data, self.datatype), f'{self.__class__.__name__} expects {self.datatype} as input data but got {type(data)}'
+        assert isinstance(df, pd.DataFrame), (
+            f"{self.__class__.__name__} expects pd.DataFrame as input data "
+            f" but got {type(df)}"
+        )
         assert (
             len(list(df)) >= 2
         ), "BayesianNet requires at least 2 attributes(i.e., columns) in dataset."
-        LOGGER.debug(f"Start training BayesianNet on data of shape {df.shape}...")
+        LOGGER.info(f"Start training BayesianNet on data of shape {df.shape}...")
         self.num_attributes = df.shape[1]
 
         if self.trained:
             self.trained = False
-            # self.DataDescriber = None
             self.bayesian_network = None
             self.conditional_probabilities = None
-
-        # self.DataDescriber = DataDescriber(self.metadata, self.histogram_bins, self.infer_ranges)
-        # self.DataDescriber.describe(data)
-
-        # encoded_df = pd.DataFrame(columns=self.DataDescriber.attr_names)
-        # for attr_name, column in self.DataDescriber.attr_dict.items():
-        #     encoded_df[attr_name] = column.encode_values_into_bin_idx()
 
         self._ranges = ranges
 
@@ -220,25 +211,15 @@ class BayesianNetDS(GenerativeModel):
             self.bayesian_network, df
         )
 
-        LOGGER.debug(f"Finished training Bayesian net")
+        LOGGER.info("Finished training Bayesian net")
         self.trained = True
 
     def generate_samples(self, nsamples):
-        LOGGER.debug(f"Generate synthetic dataset of size {nsamples}")
+        LOGGER.info(f"Generate synthetic dataset of size {nsamples}")
         assert self.trained, "Model must be fitted to some real data first"
-        # synthetic_data = pd.DataFrame(columns=self.DataDescriber.attr_names)
 
         # Get samples for attributes modelled in Bayesian net
         df = self._generate_encoded_dataset(nsamples)
-
-        # for attr in self.DataDescriber.attr_names:
-        #     column = self.DataDescriber.attr_dict[attr]
-        #     if attr in encoded_dataset:
-        #         synthetic_data[attr] = column.sample_values_from_binning_indices(encoded_dataset[attr])
-        #     else:
-        #         # For attributes not in BN use independent attribute mode
-        #         binning_indices = column.sample_binning_indices_in_independent_attribute_mode(nsamples)
-        #         synthetic_data[attr] = column.sample_values_from_binning_indices(binning_indices)
 
         return df
 
@@ -273,9 +254,13 @@ class BayesianNetDS(GenerativeModel):
                     )
 
             # Fill any nan values by sampling from marginal child distribution
-            # marginal_dist = self.DataDescriber.attr_dict[child].distribution_probabilities
+            # marginal_dist = (self.DataDescriber
+            #                      .attr_dict[child]
+            #                      .distribution_probabilities)
             # null_idx = encoded_df[child].isnull()
-            # encoded_df.loc[null_idx, child] = np.random.choice(len(marginal_dist), size=null_idx.sum(), p=marginal_dist)
+            # encoded_df.loc[null_idx, child] = np.random.choice(len(marginal_dist),
+            #                                                    size=null_idx.sum(),
+            #                                                    p=marginal_dist)
         # THE PRIVOUS COMMENT DOES NOT MAKE SENSE,
         # BECAUSE THE NULL CELLS WILL BE OVERWRITTEN BY THE LOOOP ABOVE
         assert not encoded_df.isnull().values.any()
@@ -421,6 +406,11 @@ class PrivBayesDS(BayesianNetDS):
         self.epsilon_em = self.epsilon_split * self.epsilon
         self.epsilon_hist = (1 - self.epsilon_split) * self.epsilon
 
+        LOGGER.info(
+            f"{self.epsilon=} | {self.epsilon_split=}"
+            f" | {self.epsilon_em=} | {self.epsilon_hist=}"
+        )
+
         self.secure = secure
         if not self.secure:
             warnings.warn(
@@ -449,6 +439,7 @@ class PrivBayesDS(BayesianNetDS):
         attr_to_is_binary = {attr: dataset[attr].unique().size <= 2 for attr in dataset}
 
         if self.secure:
+            LOGGER.info("Secure random for root attribute")
             root_attribute = CSPRNG.choice(dataset.columns)
         else:
             root_attribute = np.random.choice(dataset.columns)
@@ -483,6 +474,7 @@ class PrivBayesDS(BayesianNetDS):
 
             seq = list(range(len(mutual_info_list)))
             if self.secure:
+                LOGGER.info("Secure random for EM")
                 idxs = CSPRNG.choices(seq, weights=sampling_distribution, k=1)
                 assert len(idxs) == 1
                 idx = idxs[0]
@@ -531,6 +523,7 @@ class PrivBayesDS(BayesianNetDS):
 
         # Get Laplace noise sample
         if self.secure:
+            LOGGER.info("Secure random for histogram")
             enable_features("floating-point", "contrib", "use-openssl")
             meas = make_base_laplace(self.laplace_noise_scale)
             noise_sample = [meas(0.0) for _ in range(full_counts.index.size)]
