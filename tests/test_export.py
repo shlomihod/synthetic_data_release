@@ -33,6 +33,7 @@ DATASET_SIZE = 1000
 NUM_SYNTHETIC_DATASETS = 10
 DEGREE = 2
 EPSILON = 1
+EPSILON_SPLIT = 0.5
 HISTOGRM_BINS = 25
 PREDICT_COLUMN = "RISK_MORTALITY"
 
@@ -67,8 +68,8 @@ class TestExport(TestCase):
                 degree=DEGREE,
                 epsilon=EPSILON,
             ),
-            PrivBayesDS(degree=DEGREE, epsilon=EPSILON, secure=False),
-            PrivBayesDS(degree=DEGREE, epsilon=EPSILON, secure=True),
+            PrivBayesDS(degree=DEGREE, epsilon=EPSILON, epsilon_split=EPSILON_SPLIT, secure=False),
+            PrivBayesDS(degree=DEGREE, epsilon=EPSILON, epsilon_split=EPSILON_SPLIT, secure=True),
         ]
         print(f"gmList = {gmList}")
 
