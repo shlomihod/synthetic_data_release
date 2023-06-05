@@ -154,7 +154,7 @@ def exponential_mechanism(
 ):
     """Applied in Exponential Mechanism to sample outcomes."""
     delta_array = []
-    for (child, parents) in parents_pair_list:
+    for child, parents in parents_pair_list:
         sensitivity = calculate_sensitivity(
             num_tuples, child, parents, attr_to_is_binary
         )
@@ -202,14 +202,17 @@ class BayesianNetDS(GenerativeModel):
             self.trained = False
             self.bayesian_network = None
             self.conditional_probabilities = None
+            self.ranges = None
 
-        self._ranges = ranges
+        self.ranges = ranges
 
         self.bayesian_network = self._greedy_bayes_linear(df, self.degree)
 
         self.conditional_probabilities = self._construct_conditional_probabilities(
             self.bayesian_network, df
         )
+
+        self.show()
 
         LOGGER.info("Finished training Bayesian net")
         self.trained = True
@@ -224,7 +227,6 @@ class BayesianNetDS(GenerativeModel):
         return df
 
     def _generate_encoded_dataset(self, nsamples):
-
         encoded_df = pd.DataFrame(
             columns=self._get_sampling_order(self.bayesian_network)
         )
@@ -371,7 +373,7 @@ class BayesianNetDS(GenerativeModel):
 
         # Get all possible attribute it.combinations
         attr_combs = [
-            range(self._ranges[attr][1] - self._ranges[attr][0] + 1)
+            range(self.ranges[attr][1] - self.ranges[attr][0] + 1)
             for attr in attributes
         ]
         full_space = pd.DataFrame(
@@ -422,7 +424,9 @@ class PrivBayesDS(BayesianNetDS):
             # NOT SECURE, but it is ok for sampling
             # We store the state as part of the transcript for reproducibility
             self.sampling_prng = np.random.default_rng()
-            self.transcript.append(("sampling_seed", self.sampling_prng.bit_generator.state))
+            self.transcript.append(
+                ("sampling_seed", self.sampling_prng.bit_generator.state)
+            )
 
         self.__name__ = f"PrivBayesEps{self.epsilon}"
 
@@ -511,7 +515,7 @@ class PrivBayesDS(BayesianNetDS):
 
         # Get all possible attribute it.combinations
         attr_combs = [
-            range(self._ranges[attr][1] - self._ranges[attr][0] + 1)
+            range(self.ranges[attr][1] - self.ranges[attr][0] + 1)
             for attr in attributes
         ]
         full_space = pd.DataFrame(
@@ -551,4 +555,3 @@ class PrivBayesDS(BayesianNetDS):
             self.transcript = []
 
         super().fit(df, ranges)
-
