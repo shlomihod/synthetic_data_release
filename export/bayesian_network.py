@@ -172,8 +172,9 @@ class BayesianNetDS(GenerativeModel):
     A BayesianNet model using non-private GreedyBayes to learn conditional probabilities
     """
 
-    def __init__(self, degree, sampling_seed=None):
+    def __init__(self, degree, with_root_hist_query=False, sampling_seed=None):
         self.degree = degree
+        self.with_root_hist_query = with_root_hist_query
         self.sampling_seed = sampling_seed
 
         self.bayesian_network = None
@@ -315,8 +316,9 @@ class BayesianNetDS(GenerativeModel):
         # first k+1 attributes
         root = bayesian_network[0][1][0]
         kplus1_attributes = [root]
-        for child, _ in bayesian_network[:k]:
-            kplus1_attributes.append(child)
+        if not self.with_root_hist_query:
+            for child, _ in bayesian_network[:k]:
+                kplus1_attributes.append(child)
 
         freqs_of_kplus1_attributes = self._get_attribute_frequency_counts(
             kplus1_attributes, encoded_dataset
@@ -335,7 +337,7 @@ class BayesianNetDS(GenerativeModel):
         for idx, (child, parents) in enumerate(bayesian_network):
             conditional_distributions[child] = {}
 
-            if idx < k:
+            if not self.with_root_hist_query and idx < k:
                 stats = freqs_of_kplus1_attributes.copy().loc[
                     :, parents + [child, "count"]
                 ]
@@ -395,8 +397,10 @@ class PrivBayesDS(BayesianNetDS):
     A differentially private BayesianNet model using GreedyBayes
     """
 
-    def __init__(self, degree, epsilon, epsilon_split, secure=True):
-        super().__init__(degree=degree)
+    def __init__(
+        self, degree, epsilon, epsilon_split, with_root_hist_query=False, secure=True
+    ):
+        super().__init__(degree=degree, with_root_hist_query=with_root_hist_query)
 
         assert 0 < epsilon_split < 1
 
@@ -432,7 +436,10 @@ class PrivBayesDS(BayesianNetDS):
 
     @property
     def laplace_noise_scale(self):
-        return 2 * (self.num_attributes - self.degree) / self.epsilon_hist
+        if self.with_root_hist_query:
+            return 2 * self.num_attributes / self.epsilon_hist
+        else:
+            return 2 * (self.num_attributes - self.degree) / self.epsilon_hist
 
     def _greedy_bayes_linear(self, encoded_df, k=1):
         """Construct a Bayesian Network (BN) using greedy algorithm."""
