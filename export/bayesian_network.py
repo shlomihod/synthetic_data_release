@@ -183,6 +183,7 @@ class BayesianNetDS(GenerativeModel):
 
         self.ranges = None
         self.num_attributes = None
+        self.num_records = None
 
         self.sampling_prng = np.random.random.__self__
 
@@ -198,22 +199,21 @@ class BayesianNetDS(GenerativeModel):
         ), "BayesianNet requires at least 2 attributes(i.e., columns) in dataset."
         LOGGER.info(f"Start training BayesianNet on data of shape {df.shape}...")
         self.num_attributes = df.shape[1]
+        self.ranges = ranges
+        self.num_records = df.shape[0]
 
         if self.trained:
             self.trained = False
             self.bayesian_network = None
             self.conditional_probabilities = None
-            self.ranges = None
-
-        self.ranges = ranges
 
         self.bayesian_network = self._greedy_bayes_linear(df, self.degree)
+
+        self.show()
 
         self.conditional_probabilities = self._construct_conditional_probabilities(
             self.bayesian_network, df
         )
-
-        self.show()
 
         LOGGER.info("Finished training Bayesian net")
         self.trained = True
@@ -278,7 +278,7 @@ class BayesianNetDS(GenerativeModel):
             order.append(child)
         return order
 
-    def _greedy_bayes_linear(self, encoded_df, k=1):
+    def _greedy_bayes_linear(self, encoded_df, k):
         """Construct a Bayesian Network (BN) using greedy algorithm."""
         dataset = encoded_df.astype(str, copy=False)
 
@@ -393,13 +393,21 @@ class BayesianNetDS(GenerativeModel):
 
 
 class PrivBayesDS(BayesianNetDS):
-    """ "
+    """
     A differentially private BayesianNet model using GreedyBayes
     """
 
     def __init__(
-        self, degree, epsilon, epsilon_split, with_root_hist_query=False, secure=True
+        self,
+        degree,
+        epsilon,
+        epsilon_split,
+        is_theta=False,
+        with_root_hist_query=False,
+        secure=True,
     ):
+        assert not is_theta or with_root_hist_query, "is_theta requires root_hist_query"
+
         super().__init__(degree=degree, with_root_hist_query=with_root_hist_query)
 
         assert 0 < epsilon_split < 1
@@ -417,7 +425,17 @@ class PrivBayesDS(BayesianNetDS):
             f" | {self.epsilon_em=} | {self.epsilon_hist=}"
         )
 
+        self.is_theta = is_theta
+
+        LOGGER.info(f"{self.is_theta=} | {self.with_root_hist_query=}")
+
+        if not self.is_theta:
+            self._greedy_bayes_linear = self._greedy_bayes_linear_DEGREE
+        else:
+            self._greedy_bayes_linear = self._greedy_bayes_linear_THETA
+
         self.secure = secure
+
         if not self.secure:
             warnings.warn(
                 "Secure is set to False. This is not recommended for real-world use."
@@ -441,7 +459,7 @@ class PrivBayesDS(BayesianNetDS):
         else:
             return 2 * (self.num_attributes - self.degree) / self.epsilon_hist
 
-    def _greedy_bayes_linear(self, encoded_df, k=1):
+    def _greedy_bayes_linear_DEGREE(self, encoded_df, k):
         """Construct a Bayesian Network (BN) using greedy algorithm."""
         dataset = encoded_df.astype(str, copy=False)
         num_tuples, num_attributes = dataset.shape
@@ -473,6 +491,104 @@ class PrivBayesDS(BayesianNetDS):
                 parents_pair_list += res[0]
                 mutual_info_list += res[1]
 
+            sampling_distribution = exponential_mechanism(
+                self.epsilon_em,
+                mutual_info_list,
+                parents_pair_list,
+                attr_to_is_binary,
+                num_tuples,
+                num_attributes,
+            )
+
+            seq = list(range(len(mutual_info_list)))
+            if self.secure:
+                LOGGER.info("Secure random for EM")
+                idxs = CSPRNG.choices(seq, weights=sampling_distribution, k=1)
+                assert len(idxs) == 1
+                idx = idxs[0]
+            else:
+                idx = np.random.choice(seq, p=sampling_distribution)
+
+            self.transcript.append(
+                (
+                    "exponential_mechanism",
+                    self.secure,
+                    self.epsilon_em,
+                    mutual_info_list,
+                    parents_pair_list,
+                    attr_to_is_binary,
+                    num_tuples,
+                    num_attributes,
+                    sampling_distribution,
+                    idx,
+                )
+            )
+
+            bayesian_net.append(parents_pair_list[idx])
+            adding_attribute = parents_pair_list[idx][0]
+            V.append(adding_attribute)
+            rest_attributes.remove(adding_attribute)
+
+        return bayesian_net
+
+    def _greedy_bayes_linear_THETA(self, encoded_df, theta):
+        """Construct a Bayesian Network (BN) using greedy algorithm."""
+        dataset = encoded_df.astype(str, copy=False)
+        num_tuples, num_attributes = dataset.shape
+
+        attr_to_is_binary = {attr: dataset[attr].unique().size <= 2 for attr in dataset}
+
+        if self.secure:
+            LOGGER.info("Secure random for root attribute")
+            root_attribute = CSPRNG.choice(dataset.columns)
+        else:
+            root_attribute = np.random.choice(dataset.columns)
+
+        self.transcript.append(("root_attribute", dataset.columns, root_attribute))
+
+        V = [root_attribute]
+        rest_attributes = set(dataset.columns)
+        rest_attributes.remove(root_attribute)
+        bayesian_net = []
+
+        tau = self._calc_tau_bound()
+
+        while rest_attributes:
+            parents_pair_list = []
+            mutual_info_list = []
+
+            print("#" * 80)
+            # num_parents = min(len(V), k)
+            for num_parents in range(1, len(V) + 1):
+                for child, split in it.product(
+                    rest_attributes, range(len(V) - num_parents + 1)
+                ):
+                    print(f"    {len(V)=} | {num_parents=} | {child=} | {split=}")
+                    task = (child, V, num_parents, split, dataset)
+                    # print("*" * 80)
+                    # print(f"    {task=}")
+                    res = bayes_worker(task)
+                    print(f"    {res=}")
+                    # print(f"{num_parents=}")
+                    # print(f"{split=}")
+                    # print(f"{child=}")
+                    # assert len(res[0]) == 1
+
+                    # assert child_parents_pair[0] == child
+                    # print(f"{child_parents_pair=}")
+
+                    # print(f"    {attributes=}")
+
+                    for parents_pair, mutal_info in zip(res[0], res[1]):
+                        assert parents_pair[0] == child
+                        attributes = [parents_pair[0]] + parents_pair[1]
+                        num_cells = self._calc_number_of_cells(attributes)
+                        print(f"    {tau=} | {num_cells=} {tau / num_cells=}")
+                        print(f"    {parents_pair=}")
+                        if tau / num_cells >= theta:
+                            parents_pair_list += [parents_pair]
+                            mutual_info_list += [mutal_info]
+            print(f"XXX {parents_pair_list=}")
             sampling_distribution = exponential_mechanism(
                 self.epsilon_em,
                 mutual_info_list,
@@ -556,6 +672,17 @@ class PrivBayesDS(BayesianNetDS):
         full_counts.loc[full_counts["count"] < 0, "count"] = 0
 
         return full_counts
+
+    def _calc_number_of_cells(self, attributes):
+        attrs_ranges = [
+            self.ranges[attr][1] - self.ranges[attr][0] + 1 for attr in attributes
+        ]
+        return np.prod(attrs_ranges)
+
+    def _calc_tau_bound(self):
+        # bound = ep * tbl.size() / (4.0 * dim * theta);		// bound to nr. of cells
+        tau = self.epsilon_hist * self.num_records / (2 * self.num_attributes)
+        return tau
 
     def fit(self, df, ranges):
         if self.trained:
